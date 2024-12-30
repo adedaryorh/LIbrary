@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:latest
+    container_name: postgres_db
+    ports:
+      - "5432:5432"
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-default_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-default_password}
+      POSTGRES_DB: ${DB_NAME:-default_db}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - my_project_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-default_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Adminer (Database Management UI)
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    ports:
+      - "8888:8080"
+    depends_on:
+      - db
+    networks:
+      - my_project_network
+
+  # Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    container_name: zookeeper
+    restart: always
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - my_project_network
+    healthcheck:
+      test: [ "CMD-SHELL", "zookeeper-shell localhost:2181 ls / 2>&1 | grep zookeeper" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Kafka Broker
+  broker:
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: kafka_broker
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    restart: always
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 30s
+      retries: 5
+      timeout: 20s
+    networks:
+      - my_project_network
+
+volumes:
+  db_data:
+  kafka_data:
+  zookeeper_data:
+  zookeeper_logs:
+
+networks:
+  my_project_network:
+    driver: bridge
