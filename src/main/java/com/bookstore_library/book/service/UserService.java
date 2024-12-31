@@ -29,7 +29,6 @@ public class UserService {
         this.gson = new Gson();
     }
 
-
     public void registerUser(User user) {
         try {
             if (userRepository.existsByUserId(user.getUserId())) {
@@ -58,8 +57,8 @@ public class UserService {
         }
     }
 
-
     public User getUserById(String userId) {
         return userRepository.findByUserId(userId).orElse(null);  // Lookup by userId, not id
     }
+
 }

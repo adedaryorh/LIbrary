@@ -68,8 +68,6 @@ kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic book_returne
 Verify Consumer Groups
 Check if the consumer groups (user-group, library-group) are actively processing the messages.
 
-bash
-Copy code
 kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group user-profile-group
 If the group does not exist:
 bash

@@ -6,7 +6,7 @@ import java.lang.annotation.*;
 
 @Target({ElementType.FIELD, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-@Constraint(validatedBy = MaxBorrowLimitValidator.class)  // Validator class
+@Constraint(validatedBy = MaxBorrowLimitValidator.class)  // Link to the validator
 public @interface MaxBorrowLimit {
     String message() default "Borrowing limit exceeded";
     Class<?>[] groups() default {};

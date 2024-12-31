@@ -9,6 +9,7 @@ import com.bookstore_library.book.service.BookService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import com.bookstore_library.book.customs.MaxBorrowLimitValidator;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -90,7 +91,6 @@ public class BookController {
                             return authorRepository.save(newAuthor);  // Persist new author here
                         });
             }
-            // Error: No author data provided
             else {
                 return ResponseEntity.badRequest().body("Author information is required");
             }
@@ -110,6 +110,4 @@ public class BookController {
             return ResponseEntity.status(500).body("Error: " + e.getMessage());
         }
     }
-
-
 }

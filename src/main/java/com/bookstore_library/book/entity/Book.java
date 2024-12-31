@@ -22,18 +22,23 @@ public class Book {
     private String isbn;
 
     private boolean isBorrowed;
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    private int borrowCount = 0;
 
-    public Book() {}
-
-    // Constructor to initialize Book with author, title, and ISBN
-    public Book(String title, Author author, String isbn) {
+    public Book(Long id, String title, Author author, String isbn, boolean isBorrowed, int borrowCount) {
+        this.id = id;
         this.title = title;
         this.author = author;
         this.isbn = isbn;
-        this.isBorrowed = false;
+        this.isBorrowed = isBorrowed;
+        this.borrowCount = borrowCount;
     }
 
-    // Getters and Setters
+    public Book() {}
+
+    public Book(String title, Author author, String isbn) {
+    }
+
     public Long getId() {
         return id;
     }
@@ -54,6 +59,10 @@ public class Book {
         return author;
     }
 
+    public void setAuthor(Author author) {
+        this.author = author;
+    }
+
     public String getIsbn() {
         return isbn;
     }
@@ -68,5 +77,13 @@ public class Book {
 
     public void setBorrowed(boolean borrowed) {
         isBorrowed = borrowed;
+    }
+
+    public int getBorrowCount() {
+        return borrowCount;
+    }
+
+    public void setBorrowCount(int borrowCount) {
+        this.borrowCount = borrowCount;
     }
 }

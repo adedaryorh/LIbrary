@@ -3,24 +3,23 @@ package com.bookstore_library.book.customs;
 import com.bookstore_library.book.entity.Book;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
+
 import java.util.List;
 
 public class MaxBorrowLimitValidator implements ConstraintValidator<MaxBorrowLimit, List<Book>> {
 
     private int maxLimit;
 
-    // Initialize the max limit from annotation
     @Override
     public void initialize(MaxBorrowLimit constraintAnnotation) {
-        this.maxLimit = constraintAnnotation.max();
+        this.maxLimit = constraintAnnotation.max(); // Initialize with the value from the annotation
     }
 
-    // Validation logic for borrowed books
     @Override
     public boolean isValid(List<Book> books, ConstraintValidatorContext context) {
         if (books == null) {
-            return true;  // Null is considered valid (optional)
+            return true;  // Null is considered valid
         }
-        return books.size() <= maxLimit;
+        return books.size() <= maxLimit; // Validate book list size
     }
 }
