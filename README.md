@@ -25,8 +25,8 @@ https://documenter.getpostman.com/view/17470462/2sAYJ7fyzy
 ## Running the Application
 1. Clone the repository:
    ```bash
-   git clone https://github.com/adedaryorh/bookstore-library.git
-   cd bookstore-library
+   git clone https://github.com/adedaryorh/LIbrary_BookStore.git
+   cd LIbrary_BookStore
    ```
 2. Start Kafka, Zookeeper, and PostgreSQL using Docker Compose:
    ```bash
