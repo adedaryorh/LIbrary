@@ -1,49 +1,53 @@
 package com.bookstore_library.book.service;
 
+import com.bookstore_library.book.entity.User;
 import com.bookstore_library.book.entity.UserRegisteredEvent;
+import com.bookstore_library.book.repository.UserRepository;
 import com.google.gson.Gson;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
-import java.util.Collections;
-import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-
-//Listeners (Consumers):
-//UserProfileService
-
-// UserProfileService.java
+@Service
 public class UserProfileService {
-    private KafkaConsumer<String, String> consumer;
+    private static final Logger LOGGER = Logger.getLogger(UserProfileService.class.getName());
     private final Gson gson = new Gson();
+    private final UserRepository userRepository;
 
-    public UserProfileService() {
-        consumer = new KafkaConsumer<>(getConsumerProps());
-        consumer.subscribe(Collections.singleton("user_events"));
+    public UserProfileService(UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 
-    private Properties getConsumerProps() {
-        Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "user-profile-group");
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        return props;
-    }
+    /**
+     * Listen for UserRegisteredEvent from Kafka and create user profiles.
+     *
+     * @param message Kafka message containing UserRegisteredEvent.
+     */
+    @KafkaListener(topics = "user_events", groupId = "user-profile-group")
+    @Transactional
+    public void handleUserRegisteredEvent(String message) {
+        try {
+            UserRegisteredEvent event = gson.fromJson(message, UserRegisteredEvent.class);
+            LOGGER.info("Received UserRegisteredEvent for user: " + event.getName());
 
-    public void start() {
-        while (true) {
-            ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));  // Recommended
-            for (ConsumerRecord<String, String> record : records) {
-                UserRegisteredEvent event = gson.fromJson(record.value(), UserRegisteredEvent.class);
-                System.out.println("Received UserRegisteredEvent: " + event);
-                // Create user profile
+            // Check if user already exists by userId (not primary key)
+            if (userRepository.findByUserId(event.getUserId()).isPresent()) {
+                LOGGER.warning("User with userId " + event.getUserId() + " already exists. Skipping profile creation.");
+                return;
             }
-            consumer.commitSync();
+
+            // Create and save new user profile
+            User user = new User();
+            user.setUserId(event.getUserId());
+            user.setName(event.getName());
+
+            userRepository.save(user);
+            LOGGER.info("User profile created successfully for: " + event.getName());
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error processing UserRegisteredEvent", e);
         }
     }
 }

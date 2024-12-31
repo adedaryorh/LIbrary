@@ -1,4 +1,4 @@
-package com.bookstore_library.config;
+package com.bookstore_library.book.customs;
 
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;

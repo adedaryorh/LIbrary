@@ -7,8 +7,13 @@ import com.bookstore_library.book.service.BookService;
 import com.bookstore_library.book.service.UserService;
 import com.bookstore_library.exceptions.BadRequestException;
 import com.bookstore_library.exceptions.ResourceNotFoundException;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 
 @RestController
@@ -45,12 +50,21 @@ public class LibraryController {
         return "Book returned successfully!";
     }
 
-    // Register a new user
     @PostMapping("/register")
-    public String registerUser(@RequestBody User user) {
-        userService.registerUser(user);
-        return "User registered successfully!";
+    public ResponseEntity<?> registerUser(@Valid @RequestBody User user) {
+        try {
+            userService.registerUser(user);
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "User registered successfully!");
+            response.put("userId", user.getUserId());
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
     }
+
 
     @GetMapping("/user/{userId}")
     public User getUser(@PathVariable String userId) {

@@ -1,4 +1,4 @@
-package com.bookstore_library.config;
+package com.bookstore_library.book.customs;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

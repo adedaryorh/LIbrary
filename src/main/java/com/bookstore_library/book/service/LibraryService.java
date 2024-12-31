@@ -5,20 +5,19 @@ import com.bookstore_library.book.entity.BookAddedEvent;
 import com.bookstore_library.book.entity.BookBorrowedEvent;
 import com.bookstore_library.book.entity.BookReturnedEvent;
 import com.bookstore_library.book.entity.User;
+import com.bookstore_library.book.repository.BookRepository;
+import com.bookstore_library.book.repository.UserRepository;
 import com.google.gson.Gson;
 import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
-import java.util.Properties;
+import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Service class for handling library operations and publishing events to Kafka.
- * This includes adding books, borrowing books, and returning books.
- */
+@Service
 public class LibraryService {
     private static final Logger LOGGER = Logger.getLogger(LibraryService.class.getName());
     private static final String BOOK_EVENTS_TOPIC = "book_events";
@@ -27,35 +26,27 @@ public class LibraryService {
 
     private final KafkaProducer<String, String> producer;
     private final Gson gson;
+    private final BookRepository bookRepository;
+    private final UserRepository userRepository;
 
-    /**
-     * Constructor to initialize the Kafka producer and Gson serializer.
-     */
-    public LibraryService() {
-        this.producer = new KafkaProducer<>(getProducerProps());
+    @Autowired
+    public LibraryService(KafkaProducer<String, String> producer,
+                          BookRepository bookRepository,
+                          UserRepository userRepository) {
+        this.producer = producer;
         this.gson = new Gson();
+        this.bookRepository = bookRepository;
+        this.userRepository = userRepository;
     }
 
     /**
-     * Configures the Kafka producer properties.
+     * Adds a book to the library and publishes a BookAddedEvent to Kafka.
      *
-     * @return Properties for the Kafka producer.
-     */
-    private Properties getProducerProps() {
-        Properties props = new Properties();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
-        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        return props;
-    }
-
-    /**
-     * Publishes a BookAddedEvent when a new book is added to the library.
-     *
-     * @param book The book being added.
+     * @param book The book to add.
      */
     public void addBook(Book book) {
         try {
+            bookRepository.save(book);  // Save book to DB
             BookAddedEvent event = new BookAddedEvent(book.getIsbn(), book.getTitle(), book.getAuthor().toString());
             String jsonEvent = gson.toJson(event);
 
@@ -75,22 +66,42 @@ public class LibraryService {
     /**
      * Publishes a BookBorrowedEvent when a user borrows a book.
      *
-     * @param book The book being borrowed.
-     * @param user The user borrowing the book.
+     * @param bookId The ID of the book being borrowed.
+     * @param userId The ID of the user borrowing the book.
      */
-    public void borrowBook(Book book, User user) {
+    public void borrowBook(Long bookId, String userId) {
         try {
-            BookBorrowedEvent event = new BookBorrowedEvent(book.getIsbn(), user.getUserId());
-            String jsonEvent = gson.toJson(event);
+            Optional<Book> bookOpt = bookRepository.findById(bookId);
+            Optional<User> userOpt = userRepository.findById(userId);
 
-            ProducerRecord<String, String> record = new ProducerRecord<>(BOOK_BORROWED_EVENTS_TOPIC, jsonEvent);
-            producer.send(record, (metadata, exception) -> {
-                if (exception != null) {
-                    LOGGER.log(Level.SEVERE, "Error publishing BookBorrowedEvent", exception);
+            if (bookOpt.isPresent() && userOpt.isPresent()) {
+                Book book = bookOpt.get();
+                User user = userOpt.get();
+
+                if (!book.isBorrowed()) {
+                    book.setBorrowed(true);
+                    user.getBorrowedBooks().add(book);
+
+                    bookRepository.save(book);
+                    userRepository.save(user);
+
+                    BookBorrowedEvent event = new BookBorrowedEvent(book.getIsbn(), user.getUserId());
+                    String jsonEvent = gson.toJson(event);
+
+                    ProducerRecord<String, String> record = new ProducerRecord<>(BOOK_BORROWED_EVENTS_TOPIC, jsonEvent);
+                    producer.send(record, (metadata, exception) -> {
+                        if (exception != null) {
+                            LOGGER.log(Level.SEVERE, "Error publishing BookBorrowedEvent", exception);
+                        } else {
+                            LOGGER.info("Published BookBorrowedEvent to topic: " + metadata.topic());
+                        }
+                    });
                 } else {
-                    LOGGER.info("Published BookBorrowedEvent to topic: " + metadata.topic());
+                    LOGGER.warning("Book is already borrowed.");
                 }
-            });
+            } else {
+                LOGGER.warning("Book or User not found.");
+            }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error processing borrowBook", e);
         }
@@ -99,22 +110,42 @@ public class LibraryService {
     /**
      * Publishes a BookReturnedEvent when a user returns a book.
      *
-     * @param book The book being returned.
-     * @param user The user returning the book.
+     * @param bookId The ID of the book being returned.
+     * @param userId The ID of the user returning the book.
      */
-    public void returnBook(Book book, User user) {
+    public void returnBook(Long bookId, String userId) {
         try {
-            BookReturnedEvent event = new BookReturnedEvent(book.getIsbn(), user.getUserId());
-            String jsonEvent = gson.toJson(event);
+            Optional<Book> bookOpt = bookRepository.findById(bookId);
+            Optional<User> userOpt = userRepository.findById(userId);
 
-            ProducerRecord<String, String> record = new ProducerRecord<>(BOOK_RETURNED_EVENTS_TOPIC, jsonEvent);
-            producer.send(record, (metadata, exception) -> {
-                if (exception != null) {
-                    LOGGER.log(Level.SEVERE, "Error publishing BookReturnedEvent", exception);
+            if (bookOpt.isPresent() && userOpt.isPresent()) {
+                Book book = bookOpt.get();
+                User user = userOpt.get();
+
+                if (book.isBorrowed()) {
+                    book.setBorrowed(false);
+                    user.getBorrowedBooks().remove(book);
+
+                    bookRepository.save(book);
+                    userRepository.save(user);
+
+                    BookReturnedEvent event = new BookReturnedEvent(book.getIsbn(), user.getUserId());
+                    String jsonEvent = gson.toJson(event);
+
+                    ProducerRecord<String, String> record = new ProducerRecord<>(BOOK_RETURNED_EVENTS_TOPIC, jsonEvent);
+                    producer.send(record, (metadata, exception) -> {
+                        if (exception != null) {
+                            LOGGER.log(Level.SEVERE, "Error publishing BookReturnedEvent", exception);
+                        } else {
+                            LOGGER.info("Published BookReturnedEvent to topic: " + metadata.topic());
+                        }
+                    });
                 } else {
-                    LOGGER.info("Published BookReturnedEvent to topic: " + metadata.topic());
+                    LOGGER.warning("Book was not marked as borrowed.");
                 }
-            });
+            } else {
+                LOGGER.warning("Book or User not found.");
+            }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error processing returnBook", e);
         }

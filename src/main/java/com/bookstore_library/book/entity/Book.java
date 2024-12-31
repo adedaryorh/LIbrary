@@ -1,6 +1,6 @@
 package com.bookstore_library.book.entity;
 
-import com.bookstore_library.config.ValidateISBN;
+import com.bookstore_library.book.customs.ValidateISBN;
 import jakarta.persistence.*;
 
 @Entity

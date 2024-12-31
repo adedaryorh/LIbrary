@@ -1,11 +1,10 @@
 package com.bookstore_library.book.entity;
 
-import com.bookstore_library.config.MaxBorrowLimit;
+import com.bookstore_library.book.customs.MaxBorrowLimit;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.*;
 
@@ -20,7 +19,7 @@ import java.util.*;
 @NoArgsConstructor
 public class User {
     @Id
-    private Long id;
+    @Column(name = "user_id", unique = true, nullable = false)
     private String userId;
     @NotBlank(message = "Name cannot be blank")
     private String name;
@@ -34,7 +33,7 @@ public class User {
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "book_id")
     )
-    @MaxBorrowLimit(max = 5)  // Custom annotation to limit borrowing
+    @MaxBorrowLimit(max = 5, message = "You cannot borrow more than 5 books")
     private List<Book> borrowedBooks = new ArrayList<>();
 
     /**
@@ -50,14 +49,6 @@ public class User {
      */
     public void removeBorrowedBook(Book book) {
         borrowedBooks.remove(book);
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
     }
 
     public String getUserId() {

@@ -2,54 +2,46 @@ package com.bookstore_library.book.service;
 
 import com.bookstore_library.book.entity.BookBorrowedEvent;
 import com.bookstore_library.book.entity.BookReturnedEvent;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
+import com.google.gson.Gson;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
-import com.google.gson.Gson;
+import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Properties;
+import java.util.logging.Logger;
 
-/**
- * Listens to book borrowed and returned events to update book availability.
- */
+@Service
 public class BookAvailabilityService {
-    private static final String BOOTSTRAP_SERVERS = "localhost:9092";
-    private static final String GROUP_ID = "book-availability-group";
+    private static final Logger LOGGER = Logger.getLogger(BookAvailabilityService.class.getName());
     private static final String BOOK_BORROWED_EVENTS_TOPIC = "book_borrowed_events";
     private static final String BOOK_RETURNED_EVENTS_TOPIC = "book_returned_events";
 
     private final KafkaConsumer<String, String> consumer;
     private final Gson gson;
 
-    public BookAvailabilityService() {
-        this.consumer = new KafkaConsumer<>(getConsumerProps());
+    public BookAvailabilityService(KafkaConsumer<String, String> consumer) {
+        this.consumer = consumer;
         this.gson = new Gson();
-        subscribeToTopics();
     }
 
-    private Properties getConsumerProps() {
-        Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_SERVERS);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, GROUP_ID);
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        return props;
-    }
-
-    private void subscribeToTopics() {
+    @PostConstruct
+    public void subscribe() {
         consumer.subscribe(Arrays.asList(BOOK_BORROWED_EVENTS_TOPIC, BOOK_RETURNED_EVENTS_TOPIC));
+        startPolling();
     }
 
-    public void start() {
-        while (true) {
-            ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));  // Recommended
-            records.forEach(this::processRecord);
-            consumer.commitSync();
-        }
+    private void startPolling() {
+        new Thread(() -> {
+            while (true) {
+                ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+                records.forEach(this::processRecord);
+                consumer.commitSync();
+            }
+        }).start();
     }
 
     private void processRecord(ConsumerRecord<String, String> record) {
@@ -61,19 +53,24 @@ public class BookAvailabilityService {
                 processBookReturnedEvent(record);
                 break;
             default:
-                System.err.println("Unknown topic: " + record.topic());
+                LOGGER.warning("Received message from unknown topic: " + record.topic());
         }
     }
 
     private void processBookBorrowedEvent(ConsumerRecord<String, String> record) {
         BookBorrowedEvent event = gson.fromJson(record.value(), BookBorrowedEvent.class);
-        System.out.println("Received BookBorrowedEvent: " + event);
-        // Update book availability
+        LOGGER.info("Updating availability for borrowed book with ISBN: " + event.getIsbn());
+        // Implement logic to mark book as unavailable in inventory.
     }
 
     private void processBookReturnedEvent(ConsumerRecord<String, String> record) {
         BookReturnedEvent event = gson.fromJson(record.value(), BookReturnedEvent.class);
-        System.out.println("Received BookReturnedEvent: " + event);
-        // Update book availability
+        LOGGER.info("Updating availability for returned book with ISBN: " + event.getIsbn());
+        // Implement logic to mark book as available in inventory.
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        consumer.close();
     }
 }

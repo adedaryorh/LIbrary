@@ -1,4 +1,4 @@
-package com.bookstore_library.config;
+package com.bookstore_library.book.customs;
 
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.info.Contact;

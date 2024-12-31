@@ -1,0 +1,106 @@
+Setup Kafka Topics (Ensure Topics Exist)
+
+kafka-topics.sh --create --topic user_events --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+kafka-topics.sh --create --topic book_events --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+kafka-topics.sh --create --topic book_borrowed_events --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+kafka-topics.sh --create --topic book_returned_events --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+
+Verify the topics
+kafka-topics.sh --list --bootstrap-server localhost:9092
+
+Producer: Simulate Adding Users
+
+kafka-console-producer.sh --bootstrap-server localhost:9092 --topic user_events
+
+>>
+{"userId":"user1118","name":"JUJU toha"}
+{"userId":"user8979","name":"Jane Smith"}
+{"userId":"user8980","name":"Alice Johnson"}
+
+Add Books (Produce to book_events)
+kafka-console-producer.sh --bootstrap-server localhost:9092 --topic book_events
+
+>>
+{"isbn":"9780060935467","title":"Essentials of Java","author":"James Clear"}
+{"isbn":"9780132350884","title":"Clean Code","author":"Robert C. Martin"}
+{"isbn":"9781449373320","title":"Effective Java","author":"Joshua Bloch"}
+
+Consumer: Verify User and Book Creation
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic user_events --from-beginning
+
+>>
+{"userId":"user8978","name":"John Doe"}
+{"userId":"user8979","name":"Jane Smith"}
+
+Consume Book Events
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic book_events --from-beginning
+
+>>{"isbn":"9780060935467","title":"Essentials of Java","author":"James Clear"}
+
+
+
+
+2. Simulate Borrowing and Returning Books
+
+kafka-console-producer.sh --bootstrap-server localhost:9092 --topic book_borrowed_events
+>>
+{"isbn":"9780399590504","userId":"user1118"}
+{"isbn":"9780132350884","userId":"user8979"}
+
+Return Books (Produce to book_returned_events)
+
+kafka-console-producer.sh --bootstrap-server localhost:9092 --topic book_returned_events
+>>
+{"isbn":"9780060935467","userId":"user8978"}
+
+Consume Borrowed Events
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic book_borrowed_events --from-beginning
+>>
+{"isbn":"9780060935467","userId":"user8978"}
+
+Consume Returned Events
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic book_returned_events --from-beginning
+>>
+{"isbn":"9780060935467","userId":"user8978"}
+
+
+
+Verify Consumer Groups
+Check if the consumer groups (user-group, library-group) are actively processing the messages.
+
+bash
+Copy code
+kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group user-profile-group
+If the group does not exist:
+bash
+Copy code
+Error: Consumer group 'user-profile-group' does not exist.
+To verify if events are being consumed:
+
+bash
+Copy code
+kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group library-group
+Expected Output (No Lag):
+sql
+Copy code
+GROUP                 TOPIC               PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG
+library-group         book_borrowed_events 0         10              10              0
+8. Check If Consumers Are Processing Events
+Book Borrowing History Service
+bash
+Copy code
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic book_borrowed_events --from-beginning
+Expected Log Output (From UserBorrowingHistoryService):
+csharp
+Copy code
+Processed borrow event for book: 9780060935467
+User Profile Service
+bash
+Copy code
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic user_events --from-beginning
+Expected Log Output (From UserProfileService):
+sql
+Copy code
+Received UserRegisteredEvent for user: John Doe
+User profile created successfully for: John Doe
+
